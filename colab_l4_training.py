@@ -113,7 +113,7 @@ class Config:
     
     # === OPTIMIZATION ===
     use_mixed_precision: bool = True
-    use_gradient_checkpointing: bool = True
+    use_gradient_checkpointing: bool = False  # disable to avoid checkpoint tensor-mismatch on Colab
     eval_interval: int = 100
     save_interval: int = 500
     enable_continuous_learning: bool = False  # set True to build orchestrator (manual start)
@@ -684,7 +684,11 @@ def train(config, model, optimizer, scheduler, criterion, batches, device, check
                 
                 # Memory decay
                 if model.hippocampus:
-                    model.hippocampus.decay(rate=0.001)
+                    # Backward compatibility: older hippocampal versions expose decay_memories only
+                    if hasattr(model.hippocampus, "decay"):
+                        model.hippocampus.decay(rate=0.001)
+                    elif hasattr(model.hippocampus, "decay_memories"):
+                        model.hippocampus.decay_memories(decay_rate=0.001)
             
             # Checkpointing
             if checkpoint_dir and global_step > 0 and global_step % config.save_interval == 0:
