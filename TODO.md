@@ -1,50 +1,26 @@
-# Aura Hybrid Pre-Model - Development Roadmap
+# Aura SNN-RAG — Near-Term TODO
 
-Based on the analysis of the legacy codebase (`old/`), the following components have been identified for integration into the current system to enhance bio-plausibility and functionality.
+Context: repo is now the git root pushed to `auralmn/aura-snn-rag`. Large artifacts (>2GB) stay local (models/, data dumps).
 
-## 1. Thalamic Routing System
-*   [ ] **Port `ThalamicConversationRouter`**: Implement the sophisticated routing logic from `old/core/thalamic_router.py`.
-    *   Implement query characteristic analysis (greeting, emotional, historical, etc.).
-    *   Implement routing strategies (Direct, Parallel, Staged).
-    *   Integrate with `LiquidMoERouter`.
-*   [ ] **Attention Mechanism**: Ensure `MultiChannelSpikingAttention` is fully integrated with the router.
+## Wiring and inference
+- [ ] Integrate emotion/identity head into prosody pipeline with a config flag; add smoke test.
+- [ ] Thalamus + endocrine + amygdala: add end-to-end gating test that spans ingestion → retrieval → generation.
+- [ ] Specialist auto-creation: surface a minimal API/notebook to spawn specialists per topic with phase-separated notebooks.
 
-## 2. Emotional Processing (Amygdala)
-*   [ ] **Implement `Amygdala` Module**: Port `old/core/amygdala.py`.
-    *   Create `Amygdala` class with `threat_detectors`, `emotional_processors`, and `social_evaluators`.
-    *   Implement `process_threat`, `process_emotional_salience`, and `assess_social_threat`.
-    *   Integrate fear conditioning and emotional memory.
+## Memory/index
+- [ ] Centroid index: expose rebuild schedule + persistence; add option to swap in ANN backend later (Pinecone/Qdrant adapter).
+- [ ] Cognitive map O(n²): experiment with sparse graph construction (k-NN edges) and verify retrieval quality vs speed.
+- [ ] Replay/decay: make decay learnable and buffer size adaptive; add ablation toggles in config and tests.
 
-## 3. Homeostatic Control (Hypothalamus)
-*   [ ] **Implement Endocrine System**: Port `old/core/hippothalamus.py`.
-    *   Create `Hypothalamus` for monitoring system metrics (energy, accuracy, stress).
-    *   Create `Pituitary` for hormone release (Cortisol, Dopamine, etc.).
-    *   Implement hormone effects on network hyperparameters (learning rate, expert capacity).
+## Training/bench/ablations
+- [ ] Bench runner: add scripts to run curated benchmarks + ablations (amygdala/endocrine/thalamus/centroid_index toggles).
+- [ ] Resume path: document continuing from `models/checkpoint_final.pt` for +50k steps (optimizer state optional).
+- [ ] Emotion head: finish training recipe on vocab_src; optionally pretrain personality head (identitya.jsonl).
 
-## 4. Personality System
-*   [ ] **Integrate Personality Profiles**: Port `old/core/personality.py`.
-    *   Define `PersonalityProfile` dataclass.
-    *   Integrate personality embeddings into the routing and response generation.
+## Legacy reuse
+- [ ] Pull useful pieces from `old/training/*` (e.g., amygdala trainer) where it adds value; discard if redundant.
+- [ ] Keep personality/head room for future identity/mood conditioning (no-op config until trained weights exist).
 
-## 5. System Integration
-*   [ ] **Connect Components**:
-    *   Wire Amygdala outputs to Thalamic Router (emotional routing).
-    *   Apply Hypothalamic hormones to global system parameters.
-    *   Ensure Hippocampal formation interacts with the new components.
-
-## 6. Language Zone (LLM Integration)
-*   [ ] **Implement Language Zone (Production)**:
-    *   **Methodology**: **Test-Driven Development (TDD)**. Write tests first.
-    *   **Design Spec**: See `docs/LANGUAGE_ZONE_SPECS.md`.
-    *   **Core Components**:
-        *   [ ] **GIF Neuron**: Implement Generalized Integrate-and-Fire neuron with compression ($T' = 2, L = 16$).
-        *   [ ] **Synapsis Module**: Implement synaptic plasticity and efficient linear transformations.
-        *   [ ] **SNN Transformer Blocks**: Implement `SNNMatmul`, `SNNSoftmax`, `SNNSiLU`.
-        *   [ ] **Binary Embeddings**: Implement conversion with surrogate gradients.
-        *   [ ] **Spiking Attention**: Implement Spiking Temporal-Sequential Attention (STSA).
-    *   **Training**:
-        *   [ ] **3-Stage Pipeline**: Implement Quantized ANN -> Conversion -> STDP Fine-tuning.
-        *   [ ] **FPT**: Implement Fixed-point Parallel Training for speed.
-    *   **Integration**:
-        *   [ ] **Thalamic Connection**: Connect to Thalamic Router.
-        *   [ ] **Memory Consolidation**: Implement write-back to Hippocampal Formation.
+## Docs
+- [ ] Keep `ARCHITECTURE.md` and README in sync with current toggles, checkpoints, and data sources.
+- [ ] Add short guide for pushing without LFS bloat (ignore checkpoints >2GB).

@@ -338,6 +338,10 @@ class HippocampalFormation(nn.Module):
         # or implement a "free list" for strength < threshold.
         pass
 
+    # Backward-compat shim used by older training loops
+    def decay(self, rate: float = 0.01) -> None:
+        self.decay_memories(decay_rate=rate)
+
     def rebuild_centroids(self):
         """Recompute centroids over current memories."""
         if self.memory_count == 0 or not self.use_centroid_index:
