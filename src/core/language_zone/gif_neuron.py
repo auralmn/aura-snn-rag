@@ -1,0 +1,117 @@
+import torch
+import torch.nn as nn
+import math
+from typing import Any, Tuple
+
+class MultiBitSurrogate(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, L):
+        ctx.save_for_backward(input)
+        ctx.L = L
+        spikes = torch.floor(input)
+        spikes = torch.clamp(spikes, 0, L)
+        return spikes
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        L = ctx.L
+        dist = torch.abs(input - torch.round(input))
+        grad_scale = torch.clamp(1.0 - 2.0 * dist, 0.0, 1.0)
+        in_range = (input >= 0.0) & (input <= L + 1.0)
+        return grad_output * in_range.float() * grad_scale, None
+
+class GIFNeuron(nn.Module):
+    def __init__(self, input_dim, hidden_dim, L=16, dt=1.0, tau=10.0, 
+                 threshold=1.0, alpha=0.01):
+        super().__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.L = L
+        self.linear = nn.Linear(input_dim, hidden_dim)
+        self.decay = math.exp(-dt / tau)
+        self.threshold = threshold
+        self.alpha = alpha
+        
+    def reset_state(self):
+        pass
+
+    def forward(self, x: torch.Tensor, state=None) -> Tuple[torch.Tensor, Any]:
+        batch_size, seq_len, _ = x.shape
+        device = x.device
+        dtype = x.dtype
+        
+        # Always initialize fresh state if not provided (Stateless for Checkpointing)
+        if state is None:
+            v = torch.zeros(batch_size, self.hidden_dim, device=device, dtype=dtype)
+            theta = torch.full((batch_size, self.hidden_dim), self.threshold, device=device, dtype=dtype)
+        else:
+            v, theta = state
+            
+        h = self.linear(x)
+        spikes_list = []
+        
+        for t in range(seq_len):
+            i_t = h[:, t, :]
+            v = v * self.decay + i_t
+            
+            clamp_limit = self.L * theta * 2.0
+            v = torch.clamp(v, -clamp_limit, clamp_limit)
+            
+            normalized_v = v / (theta + 1e-6)
+            spike = MultiBitSurrogate.apply(normalized_v, self.L)
+            
+            v = v - spike * theta
+            
+            if self.alpha > 0:
+                theta = theta + self.alpha * spike - self.alpha * (theta - self.threshold)
+                
+            spikes_list.append(spike)
+            
+        return torch.stack(spikes_list, dim=1), (v, theta)
+
+
+class BalancedGIFNeuron(GIFNeuron):
+    """
+    GIF neuron with separate excitatory/inhibitory pathways.
+    Excitatory currents are rectified positive; inhibitory currents are rectified negative.
+    """
+    def __init__(self, input_dim, hidden_dim, L=16, dt=1.0, tau=10.0, threshold=1.0, alpha=0.01, inhibition_ratio: float = 0.2):
+        super().__init__(input_dim=input_dim, hidden_dim=hidden_dim, L=L, dt=dt, tau=tau, threshold=threshold, alpha=alpha)
+        self.inh_ratio = inhibition_ratio
+        self.exc_dim = int(hidden_dim * (1.0 - inhibition_ratio))
+        self.inh_dim = hidden_dim - self.exc_dim
+        self.linear_exc = nn.Linear(input_dim, self.exc_dim)
+        self.linear_inh = nn.Linear(input_dim, self.inh_dim)
+
+    def forward(self, x: torch.Tensor, state=None) -> Tuple[torch.Tensor, Any]:
+        batch_size, seq_len, _ = x.shape
+        device = x.device
+        dtype = x.dtype
+
+        if state is None:
+            v = torch.zeros(batch_size, self.hidden_dim, device=device, dtype=dtype)
+            theta = torch.full((batch_size, self.hidden_dim), self.threshold, device=device, dtype=dtype)
+        else:
+            v, theta = state
+
+        spikes_list = []
+        for t in range(seq_len):
+            i_exc = torch.relu(self.linear_exc(x[:, t, :]))
+            i_inh = -torch.relu(self.linear_inh(x[:, t, :]))
+            i_t = torch.cat([i_exc, i_inh], dim=-1)
+
+            v = v * self.decay + i_t
+            clamp_limit = self.L * theta * 2.0
+            v = torch.clamp(v, -clamp_limit, clamp_limit)
+
+            normalized_v = v / (theta + 1e-6)
+            spike = MultiBitSurrogate.apply(normalized_v, self.L)
+
+            v = v - spike * theta
+            if self.alpha > 0:
+                theta = theta + self.alpha * spike - self.alpha * (theta - self.threshold)
+
+            spikes_list.append(spike)
+
+        return torch.stack(spikes_list, dim=1), (v, theta)

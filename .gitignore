@@ -1,0 +1,37 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+LiquidMoe/
+old2/
+.pycache
+.pytest_cache/
+.cursor
+__normalized/
+tests/data/
+tests/artifacts/
+vocab_src/
+*.pt
+*.bin
+*.ckpt
+*.zip
+*.tar
+*.tar.gz
+*.pkl
+*.npz
+*.npy
+*.h5
+*.safetensors
+*.lfs
+vocab_dataset.pt
+aura_full_dataset.pt
+checkpoint_*.pt
+checkpoint*.pt
+models/*
+artifacts/*
